@@ -40,21 +40,16 @@ SDS200 Scanner
 
 ## Installation
 
-### 1. On the LXC — install dependencies
+### 1. On the LXC — install Docker
 
 ```bash
-apt update && apt install -y nodejs npm ffmpeg
-
-# Install MediaMTX
-mkdir -p /opt/mediamtx && cd /opt/mediamtx
-wget https://github.com/bluenviron/mediamtx/releases/latest/download/mediamtx_linux_amd64.tar.gz
-tar -xzf mediamtx_linux_amd64.tar.gz
+curl -fsSL https://get.docker.com | sh
 ```
 
 ### 2. On your local machine — clone and configure
 
 ```bash
-git clone https://github.com/sshuster/sds200-broadcastify.git
+git clone https://github.com/Shuster-Labs/sds200-broadcastify.git
 cd sds200-broadcastify
 
 cp config.example.json config.json
@@ -80,7 +75,7 @@ Leave everything else at the defaults to start.
 ./deploy.sh <lxc-ip>
 ```
 
-This rsyncs all project files, installs both systemd services (MediaMTX and the stream service), and starts them.
+This syncs all files, builds the Docker image, and starts both containers (`mediamtx` and `sds200-stream`). Takes about 60 seconds on first run while the image builds.
 
 ### 4. Open the dashboard
 
@@ -92,23 +87,22 @@ A green **LIVE — Streaming** indicator means audio is reaching Broadcastify. Y
 
 ---
 
-## Systemd Services
+## Docker Containers
 
-Two services are installed:
+Two containers run via Docker Compose:
 
-| Service | Purpose |
+| Container | Purpose |
 |---|---|
-| `mediamtx.service` | RTSP proxy — connects to the scanner, re-serves on port 8554 |
-| `sds200-stream.service` | Node.js app — runs FFmpeg, polls scanner, updates metadata |
+| `mediamtx` | RTSP proxy — connects to the scanner, re-serves on port 8554 |
+| `sds200-stream` | Node.js app — runs FFmpeg, polls scanner, updates metadata, hosts dashboard |
 
-Both are set to `Restart=always`. If anything crashes, they come back on their own.
+Both restart automatically on crash or reboot (`restart: unless-stopped`).
 
 ```bash
 # Useful commands on the LXC
-systemctl status sds200-stream
-journalctl -u sds200-stream -f       # tail logs
-systemctl restart sds200-stream      # restart stream (brief ~10s outage)
-systemctl restart mediamtx           # restart proxy (stream drops until back)
+docker compose -f /opt/sds200-broadcastify/docker-compose.yml ps
+docker compose -f /opt/sds200-broadcastify/docker-compose.yml logs -f
+docker compose -f /opt/sds200-broadcastify/docker-compose.yml restart sds200-stream
 ```
 
 ---
@@ -132,9 +126,7 @@ systemctl restart mediamtx           # restart proxy (stream drops until back)
 ```bash
 # Pull latest code and redeploy (stream restarts briefly)
 git pull
-rsync -av --exclude='node_modules/' --exclude='.git/' \
-  src/ root@<lxc-ip>:/opt/sds200-broadcastify/src/
-ssh root@<lxc-ip> "systemctl restart sds200-stream"
+./deploy.sh <lxc-ip>
 ```
 
 ---
@@ -174,4 +166,6 @@ The Icecast metadata API (`/admin/metadata`) may take up to 30 seconds to reflec
 
 ## License
 
-MIT
+This project is free for personal, non-commercial use.  
+Commercial use requires a written license agreement.  
+Contact SShuster@livefirefeeds.net for licensing inquiries.
