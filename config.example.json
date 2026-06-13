@@ -1,0 +1,40 @@
+{
+  "scanner": {
+    "ip": "192.168.1.100",
+    "rtspPort": 554,
+    "rtspPath": "/au:scanner.au",
+    "rtspUrl": "rtsp://127.0.0.1:8554/sds200",
+    "commandPort": 50536,
+    "commandProtocol": "udp"
+  },
+  "icecast": {
+    "server": "audioN.broadcastify.com",
+    "port": 80,
+    "mount": "/your_feed_mount_key",
+    "password": "your_broadcastify_source_password",
+    "bitrate": 16,
+    "sampleRate": 22050,
+    "channels": 1,
+    "name": "City, ST Scanner",
+    "description": "County P25 Trunked System",
+    "genre": "Scanner"
+  },
+  "metadata": {
+    "pollIntervalMs": 1500,
+    "titleFormat": "{talkgroupName}",
+    "idleTitle": "Scanning..."
+  },
+  "watchdog": {
+    "enabled": false,
+    "silenceThresholdDb": -50,
+    "silenceTimeoutSeconds": 600,
+    "restartCommand": "",
+    "restartWaitSeconds": 10,
+    "maxRestartAttempts": 5,
+    "restartCooldownSeconds": 300
+  },
+  "logging": {
+    "level": "info",
+    "timestamps": true
+  }
+}

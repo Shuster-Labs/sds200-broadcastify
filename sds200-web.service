@@ -1,0 +1,15 @@
+[Unit]
+Description=SDS200 Broadcastify Web Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sds200-broadcastify
+ExecStart=/usr/bin/node src/webserver.js
+Restart=always
+RestartSec=5
+Environment=CONFIG_PATH=/opt/sds200-broadcastify/config/config.json
+Environment=WEB_PORT=3000
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+{
+  "name": "sds200-broadcastify",
+  "version": "1.0.0",
+  "description": "SDS200 scanner to Broadcastify live stream service with metadata and watchdog",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test-connection": "node test-connection.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

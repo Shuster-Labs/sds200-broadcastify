@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./config/mediamtx.yml:/mediamtx.yml:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  sds200-stream:
+    build: .
+    container_name: sds200-stream
+    restart: unless-stopped
+    depends_on:
+      - mediamtx
+    network_mode: host
+    volumes:
+      - ./config:/app/config
+    environment:
+      - CONFIG_PATH=/app/config/config.json
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
