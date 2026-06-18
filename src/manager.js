@@ -1,9 +1,13 @@
 'use strict';
 
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
-const HTML = require('./manager-html');
+const http          = require('http');
+const fs            = require('fs');
+const path          = require('path');
+const { execSync }  = require('child_process');
+const HTML          = require('./manager-html');
+
+const MEDIAMTX_YML  = process.env.MEDIAMTX_YML || '/opt/mediamtx/mediamtx.yml';
+const DEPLOY_DIR    = process.env.DEPLOY_DIR    || '/opt/sds200-broadcastify';
 
 const SCANNERS_PATH = process.env.SCANNERS_PATH || path.join(process.cwd(), 'config', 'scanners.json');
 const PORT = parseInt(process.env.MANAGER_PORT || '3000', 10);
@@ -49,6 +53,95 @@ function proxyPost(url, data) {
   });
 }
 
+function provisionScanner(data) {
+  const { name, scannerIp, icecastServer, icecastPort, icecastMount, icecastPassword, feedName, feedDescription } = data;
+  if (!scannerIp || !icecastServer || !icecastMount || !icecastPassword) {
+    throw new Error('scannerIp, icecastServer, icecastMount, and icecastPassword are required');
+  }
+
+  const scanners  = loadScanners();
+  const nextNum   = scanners.length + 1;
+  const id        = 'scanner' + nextNum;
+  const webPort   = 3000 + nextNum;
+  const mtxPath   = nextNum === 1 ? 'sds200' : ('sds200-' + nextNum);
+  const svcName   = 'sds200-' + id;
+  const cfgFile   = path.join(DEPLOY_DIR, 'config', id + '.json');
+
+  // 1 — write scanner config
+  const cfg = {
+    scanner: {
+      ip: scannerIp,
+      rtspPort: 554,
+      rtspPath: '/au:scanner.au',
+      rtspUrl: 'rtsp://127.0.0.1:8554/' + mtxPath,
+      commandPort: 50536,
+      commandProtocol: 'udp',
+    },
+    icecast: {
+      server:      icecastServer,
+      port:        parseInt(icecastPort, 10) || 80,
+      mount:       icecastMount,
+      password:    icecastPassword,
+      bitrate:     16,
+      sampleRate:  22050,
+      channels:    1,
+      name:        feedName        || (name || ('Scanner ' + nextNum)),
+      description: feedDescription || '',
+      genre:       'Scanner',
+    },
+    metadata:  { pollIntervalMs: 1500, titleFormat: '{talkgroupName}', idleTitle: 'Scanning...' },
+    watchdog:  { enabled: false, silenceThresholdDb: -50, silenceTimeoutSeconds: 600 },
+    logging:   { level: 'info', timestamps: true },
+    web:       { port: webPort },
+  };
+  fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+
+  // 2 — update scanners.json
+  const updated = { scanners: [...scanners, { id, name: name || ('Scanner ' + nextNum), apiUrl: 'http://127.0.0.1:' + webPort }] };
+  fs.writeFileSync(SCANNERS_PATH, JSON.stringify(updated, null, 2) + '\n', 'utf8');
+
+  // 3 — add MediaMTX path for the new scanner (skip if it's the first, already exists)
+  if (nextNum > 1) {
+    let yml = fs.readFileSync(MEDIAMTX_YML, 'utf8').trimEnd();
+    if (!yml.includes('\n  ' + mtxPath + ':') && !yml.includes('\n' + mtxPath + ':')) {
+      yml += '\n  ' + mtxPath + ':\n' +
+             '    source: rtsp://' + scannerIp + '/au:scanner.au\n' +
+             '    sourceProtocol: udp\n' +
+             '    sourceOnDemand: no\n';
+      fs.writeFileSync(MEDIAMTX_YML, yml, 'utf8');
+      execSync('systemctl restart mediamtx');
+    }
+  }
+
+  // 4 — write systemd service
+  const svcContent =
+    '[Unit]\n' +
+    'Description=SDS200 Scanner ' + nextNum + ' Stream Service\n' +
+    'After=network-online.target mediamtx.service\n' +
+    'Wants=network-online.target mediamtx.service\n\n' +
+    '[Service]\n' +
+    'Type=simple\n' +
+    'WorkingDirectory=' + DEPLOY_DIR + '\n' +
+    'ExecStart=/usr/bin/node src/index.js\n' +
+    'Restart=always\n' +
+    'RestartSec=5\n' +
+    'StandardOutput=journal\n' +
+    'StandardError=journal\n' +
+    'SyslogIdentifier=' + id + '\n' +
+    'Environment=NODE_ENV=production\n' +
+    'Environment=CONFIG_PATH=' + cfgFile + '\n' +
+    'Environment=WEB_PORT=' + webPort + '\n\n' +
+    '[Install]\n' +
+    'WantedBy=multi-user.target\n';
+
+  fs.writeFileSync('/etc/systemd/system/' + svcName + '.service', svcContent, 'utf8');
+  execSync('systemctl daemon-reload');
+  execSync('systemctl enable ' + svcName);
+  execSync('systemctl start '  + svcName);
+
+  return { ok: true, id, name: name || ('Scanner ' + nextNum), webPort };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = req.url.split('?')[0];
 
@@ -73,6 +166,24 @@ const server = http.createServer(async (req, res) => {
         status || { ffmpegRunning: false, scannerConnected: false, currentTitle: null, uptime: null, offline: true });
     }));
     return json(results);
+  }
+
+  // POST /api/scanners — provision a new scanner
+  if (url === '/api/scanners' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', () => {
+      let data;
+      try { data = JSON.parse(body); } catch { return json({ error: 'Invalid JSON' }, 400); }
+      try {
+        const result = provisionScanner(data);
+        json(result);
+      } catch (e) {
+        console.error('[Manager] provisionScanner error:', e.message);
+        json({ error: e.message }, 500);
+      }
+    });
+    return;
   }
 
   // /api/scanner/:id/config  GET or POST

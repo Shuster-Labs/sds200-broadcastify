@@ -246,6 +246,35 @@ input:focus { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px 
 .toast.ok  { display: block; background: rgba(52,211,153,.08);  border: 1px solid rgba(52,211,153,.2);  color: var(--green); }
 .toast.err { display: block; background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.2); color: var(--red);   }
 
+/* ── Add scanner ── */
+.add-wrap { margin-top: 8px; }
+.btn-add {
+  width: 100%;
+  justify-content: center;
+  background: rgba(129,140,248,.06);
+  color: var(--muted);
+  border: 1px dashed rgba(129,140,248,.25);
+  border-radius: var(--r);
+  padding: 14px;
+  font-size: .85rem;
+  gap: 8px;
+  transition: background .2s, border-color .2s, color .2s;
+}
+.btn-add:hover { background: rgba(129,140,248,.12); border-color: rgba(129,140,248,.4); color: var(--indigo); }
+.btn-add.open  { border-style: solid; border-color: var(--border-hi); color: var(--muted); }
+.add-panel {
+  background: var(--card);
+  border: 1px solid var(--border-hi);
+  border-top: none;
+  border-radius: 0 0 var(--r) var(--r);
+  padding: 20px 22px 22px;
+  margin-top: -1px;
+}
+.btn-cancel {
+  background: rgba(148,163,184,.07); color: var(--muted);
+  border: 1px solid var(--border-hi);
+}
+
 /* ── Empty state ── */
 .empty { text-align: center; padding: 60px 20px; color: var(--dim); }
 .empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: .4; }
@@ -276,6 +305,66 @@ input:focus { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px 
   </header>
 
   <div id="scanners-list"></div>
+
+  <div class="add-wrap">
+    <button class="btn btn-add" id="btn-add" onclick="toggleAdd()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Scanner
+    </button>
+    <div class="add-panel" id="add-panel" style="display:none">
+      <div class="cfg-panel-label">New Scanner Setup</div>
+      <form id="add-form" autocomplete="off">
+        <div class="field field-row">
+          <div>
+            <label>Scanner Name</label>
+            <input name="name" type="text" placeholder="Scanner 2" required>
+          </div>
+          <div>
+            <label>Scanner IP Address</label>
+            <input name="scannerIp" type="text" placeholder="10.x.x.x" required>
+          </div>
+        </div>
+        <hr class="rule">
+        <div class="field">
+          <label>Broadcastify Server</label>
+          <input name="icecastServer" type="text" placeholder="audioN.broadcastify.com" required>
+        </div>
+        <div class="field field-row">
+          <div>
+            <label>Port</label>
+            <input name="icecastPort" type="number" placeholder="80" required>
+          </div>
+          <div>
+            <label>Mount / Feed Key</label>
+            <input name="icecastMount" type="text" placeholder="/yourfeedkey" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>Stream Password</label>
+          <input name="icecastPassword" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required>
+        </div>
+        <hr class="rule">
+        <div class="field field-row">
+          <div>
+            <label>Feed Name</label>
+            <input name="feedName" type="text" placeholder="City, ST Scanner">
+          </div>
+          <div>
+            <label>Description</label>
+            <input name="feedDescription" type="text" placeholder="County P25 System">
+          </div>
+        </div>
+        <div class="btns">
+          <button type="submit" class="btn btn-save">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add &amp; Start Scanner
+          </button>
+          <button type="button" class="btn btn-cancel" onclick="toggleAdd()">Cancel</button>
+        </div>
+        <div id="add-toast" class="toast"></div>
+      </form>
+    </div>
+  </div>
 
 </div>
 <script>
@@ -564,6 +653,58 @@ async function init() {
     el('summary').textContent = 'Could not connect to manager service';
   }
 }
+
+/* ── Add Scanner ── */
+function toggleAdd() {
+  const panel = el('add-panel');
+  const btn   = el('btn-add');
+  const open  = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  btn.classList.toggle('open', open);
+  if (!open) el('add-form').reset();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  el('add-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = el('add-form');
+    const body = {
+      name:            f.name.value.trim(),
+      scannerIp:       f.scannerIp.value.trim(),
+      icecastServer:   f.icecastServer.value.trim(),
+      icecastPort:     parseInt(f.icecastPort.value, 10) || 80,
+      icecastMount:    f.icecastMount.value.trim(),
+      icecastPassword: f.icecastPassword.value,
+      feedName:        f.feedName.value.trim(),
+      feedDescription: f.feedDescription.value.trim(),
+    };
+    const t = el('add-toast');
+    const submitBtn = f.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Starting…';
+    try {
+      const d = await fetch('/api/scanners', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => r.json());
+      if (d && d.ok) {
+        t.textContent = (d.name || 'Scanner') + ' added and started — reloading…';
+        t.className = 'toast ok';
+        setTimeout(() => location.reload(), 1800);
+      } else {
+        t.textContent = 'Error: ' + (d && d.error ? d.error : 'Unknown error');
+        t.className = 'toast err';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add & Start Scanner';
+      }
+    } catch (err) {
+      t.textContent = 'Request failed: ' + err.message;
+      t.className = 'toast err';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Add & Start Scanner';
+    }
+  });
+});
 
 init();
 setInterval(poll, 2000);
