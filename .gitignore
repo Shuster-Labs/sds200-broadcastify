@@ -1,6 +1,7 @@
 node_modules/
 config.json
 config/
+scanners.json
 *.log
 .claude/
 probe-rtsp.py

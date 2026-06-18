@@ -108,12 +108,20 @@ class WebServer {
         return this._json(res, { ok: false, error: `Cannot write config: ${e.message}` }, 500);
       }
 
+      // Apply changes to in-memory config so stream.js picks them up immediately
+      Object.assign(this.cfg.scanner, { ip: current.scanner.ip });
+      Object.assign(this.cfg.icecast, current.icecast);
+
       log.info('Config updated via web UI');
       this._json(res, { ok: true });
 
       if (data.restart) {
-        log.info('Service restart requested via web UI');
-        setTimeout(() => process.exit(0), 600);
+        log.info('Graceful stream restart requested via web UI — 15s cooldown before reconnect');
+        this.stream.stop();
+        setTimeout(() => {
+          this.stream.resetReconnectDelay();
+          this.stream.start();
+        }, 15000);
       }
     });
   }

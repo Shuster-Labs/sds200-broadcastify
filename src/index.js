@@ -29,7 +29,8 @@ async function main() {
   const stream   = new StreamManager(cfg);
   const metadata = new MetadataPoller(cfg, scanner);
   const watchdog = new Watchdog(cfg, scanner, stream);
-  const web      = new WebServer({ cfg, scanner, stream, metadata, configPath });
+  const webPort  = process.env.WEB_PORT ? parseInt(process.env.WEB_PORT, 10) : undefined;
+  const web      = new WebServer({ cfg, scanner, stream, metadata, configPath, port: webPort });
 
   // Graceful shutdown
   const shutdown = (signal) => {

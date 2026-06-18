@@ -15,7 +15,8 @@ class StreamManager extends EventEmitter {
     this.process = null;
     this.running = false;
     this.reconnectTimer = null;
-    this.reconnectDelay = 3000;
+    this.reconnectDelay = 5000;
+    this._rapidFailCount = 0;
     this.stderrBuffer = '';
   }
 
@@ -104,7 +105,20 @@ class StreamManager extends EventEmitter {
       this.process = null;
 
       if (runMs > 30000) {
-        this.reconnectDelay = 2000;
+        // Successful connection that dropped — reset to fast reconnect
+        this._rapidFailCount = 0;
+        this.reconnectDelay = 5000;
+      } else {
+        // Fast failure = Icecast rejected us; back off aggressively
+        this._rapidFailCount++;
+        if (this._rapidFailCount >= 3) {
+          this.reconnectDelay = 300000; // 5 minutes
+        } else if (this._rapidFailCount === 2) {
+          this.reconnectDelay = 120000; // 2 minutes
+        } else {
+          this.reconnectDelay = 60000;  // 1 minute
+        }
+        log.warn(`Icecast rejection #${this._rapidFailCount} — next attempt in ${this.reconnectDelay / 1000}s`);
       }
       this.emit('disconnected');
       if (this.running) this._scheduleReconnect();
@@ -157,13 +171,11 @@ class StreamManager extends EventEmitter {
       this.reconnectTimer = null;
       this._spawn();
     }, this.reconnectDelay);
-    if (this.reconnectDelay > 2000) {
-      this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 30000);
-    }
   }
 
   resetReconnectDelay() {
-    this.reconnectDelay = 3000;
+    this._rapidFailCount = 0;
+    this.reconnectDelay = 5000;
   }
 
   restart() {

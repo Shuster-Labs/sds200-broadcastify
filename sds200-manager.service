@@ -1,0 +1,20 @@
+[Unit]
+Description=SDS200 Scanner Manager Dashboard
+After=network-online.target sds200-stream.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sds200-broadcastify
+ExecStart=/usr/bin/node src/manager.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sds200-manager
+Environment=NODE_ENV=production
+Environment=MANAGER_PORT=3000
+Environment=SCANNERS_PATH=/opt/sds200-broadcastify/config/scanners.json
+
+[Install]
+WantedBy=multi-user.target

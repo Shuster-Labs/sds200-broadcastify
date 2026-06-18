@@ -1,0 +1,14 @@
+{
+  "scanners": [
+    {
+      "id": "scanner1",
+      "name": "Scanner 1",
+      "apiUrl": "http://127.0.0.1:3001"
+    },
+    {
+      "id": "scanner2",
+      "name": "Scanner 2",
+      "apiUrl": "http://127.0.0.1:3002"
+    }
+  ]
+}

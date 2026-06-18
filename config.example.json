@@ -36,5 +36,8 @@
   "logging": {
     "level": "info",
     "timestamps": true
+  },
+  "web": {
+    "port": 3001
   }
 }
