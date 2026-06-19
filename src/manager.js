@@ -212,6 +212,17 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // /api/scanner/:id/stream/stop|start
+  const streamMatch = url.match(/^\/api\/scanner\/([^/]+)\/stream\/(stop|start)$/);
+  if (streamMatch && req.method === 'POST') {
+    let scanners;
+    try { scanners = loadScanners(); } catch { return json({ error: 'Cannot read scanners config' }, 500); }
+    const s = scanners.find(x => x.id === streamMatch[1]);
+    if (!s) return json({ error: 'Scanner not found' }, 404);
+    const result = await proxyPost(s.apiUrl + '/api/stream/' + streamMatch[2], {});
+    return json(result || { error: 'Scanner service offline' });
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('Not Found');
 });

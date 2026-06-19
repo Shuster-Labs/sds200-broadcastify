@@ -190,6 +190,16 @@ body {
   border: 1px solid rgba(220,38,38,.2);
   padding: 7px 12px; font-size: .75rem;
 }
+.btn-stop {
+  background: rgba(220,38,38,.13); color: #fca5a5;
+  border: 1px solid rgba(220,38,38,.25);
+  padding: 7px 12px; font-size: .75rem;
+}
+.btn-start {
+  background: rgba(52,211,153,.1); color: var(--green);
+  border: 1px solid rgba(52,211,153,.25);
+  padding: 7px 12px; font-size: .75rem;
+}
 
 /* ── Config panel ── */
 .cfg-panel {
@@ -408,6 +418,10 @@ function cardHTML(s, idx) {
 
     <div class="card-ftr">
       <div class="card-ftr-info" id="info-\${id}">&mdash;</div>
+      <button class="btn btn-stop" id="stopbtn-\${id}" onclick="toggleStream('\${id}')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Stop
+      </button>
       <button class="btn btn-restart-sm" onclick="quickRestart('\${id}')">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Restart
@@ -508,6 +522,17 @@ function updateStatus(s) {
 
   const up = el('up-' + id);
   if (up) up.textContent = s.uptime || '—';
+
+  // Stop/Start button
+  const stopBtn = el('stopbtn-' + id);
+  if (stopBtn) {
+    const enabled = s.streamEnabled !== false && !s.offline;
+    const svgStop  = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
+    const svgStart = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    stopBtn.innerHTML = enabled ? (svgStop + ' Stop') : (svgStart + ' Start');
+    stopBtn.className = 'btn ' + (enabled ? 'btn-stop' : 'btn-start');
+    stopBtn.disabled = s.offline || false;
+  }
 }
 
 /* ── Summary header ── */
@@ -598,6 +623,19 @@ async function postConfig(id, restart) {
 }
 
 function saveRestart(id) { postConfig(id, true); }
+
+/* ── Stop / Start stream ── */
+async function toggleStream(id) {
+  const btn = el('stopbtn-' + id);
+  const stopping = btn && btn.textContent.trim() === 'Stop';
+  const action = stopping ? 'stop' : 'start';
+  try {
+    const d = await fetch('/api/scanner/' + id + '/stream/' + action, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    }).then(r => r.json());
+    if (!d || !d.ok) toast(id, 'Could not reach scanner service', false);
+  } catch (e) { toast(id, 'Request failed: ' + e.message, false); }
+}
 
 /* ── Quick restart (no config save) ── */
 async function quickRestart(id) {

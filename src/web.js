@@ -40,9 +40,11 @@ class WebServer {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(HTML);
     }
-    if (url === '/api/status' && req.method === 'GET')  return this._status(res);
-    if (url === '/api/config' && req.method === 'GET')  return this._configGet(res);
-    if (url === '/api/config' && req.method === 'POST') return this._configPost(req, res);
+    if (url === '/api/status' && req.method === 'GET')        return this._status(res);
+    if (url === '/api/config' && req.method === 'GET')        return this._configGet(res);
+    if (url === '/api/config' && req.method === 'POST')       return this._configPost(req, res);
+    if (url === '/api/stream/stop'  && req.method === 'POST') return this._streamStop(res);
+    if (url === '/api/stream/start' && req.method === 'POST') return this._streamStart(res);
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
   }
@@ -50,6 +52,21 @@ class WebServer {
   _json(res, data, status = 200) {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
+  }
+
+  _streamStop(res) {
+    this.stream.stop();
+    this._streamEnabled = false;
+    log.info('Stream stopped via web UI');
+    this._json(res, { ok: true });
+  }
+
+  _streamStart(res) {
+    this._streamEnabled = true;
+    this.stream.resetReconnectDelay();
+    this.stream.start();
+    log.info('Stream started via web UI');
+    this._json(res, { ok: true });
   }
 
   _status(res) {
@@ -60,6 +77,7 @@ class WebServer {
     const uptime = h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
     this._json(res, {
       ffmpegRunning:    this.stream.process !== null,
+      streamEnabled:    this._streamEnabled !== false,
       scannerConnected: this.scanner.connected,
       currentTitle:     this.metadata.lastTitle || null,
       uptime,
